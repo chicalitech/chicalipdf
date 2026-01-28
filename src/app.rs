@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use iced::keyboard;
-use iced::widget::{container, row};
+use iced::widget::{column, container, row};
 use iced::{Element, Length, Subscription, Task};
 
 use crate::pdf::{render_page, render_thumbnail, Document};
-use crate::ui::{sidebar_view, viewer_view};
+use crate::ui::{menu_bar_view, sidebar_view, viewer_view};
 
 pub struct ChicaliPdf {
     document: Option<Document>,
@@ -14,6 +14,7 @@ pub struct ChicaliPdf {
     thumbnails: Vec<iced::widget::image::Handle>,
     current_page_image: Option<iced::widget::image::Handle>,
     error_message: Option<String>,
+    file_menu_open: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +30,7 @@ pub enum Message {
     KeyPressed(keyboard::Key, keyboard::Modifiers),
     ThumbnailsLoaded(Vec<iced::widget::image::Handle>),
     PageRendered(usize, iced::widget::image::Handle),
+    ToggleFileMenu,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +47,7 @@ impl Default for ChicaliPdf {
             thumbnails: Vec::new(),
             current_page_image: None,
             error_message: None,
+            file_menu_open: false,
         }
     }
 }
@@ -77,6 +80,7 @@ impl ChicaliPdf {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::OpenFile => {
+                self.file_menu_open = false;
                 return Task::perform(
                     async {
                         let file = rfd::AsyncFileDialog::new()
@@ -207,6 +211,10 @@ impl ChicaliPdf {
                     self.current_page_image = Some(handle);
                 }
             }
+
+            Message::ToggleFileMenu => {
+                self.file_menu_open = !self.file_menu_open;
+            }
         }
 
         Task::none()
@@ -276,6 +284,8 @@ impl ChicaliPdf {
     pub fn view(&self) -> Element<'_, Message> {
         let page_count = self.document.as_ref().map(|d| d.page_count()).unwrap_or(0);
 
+        let menu_bar = menu_bar_view(self.file_menu_open);
+
         let sidebar = sidebar_view(&self.thumbnails, self.current_page, page_count);
 
         let viewer = viewer_view(
@@ -285,7 +295,9 @@ impl ChicaliPdf {
             self.zoom,
         );
 
-        let content = row![sidebar, viewer].spacing(0);
+        let main_content = row![sidebar, viewer].spacing(0);
+
+        let content = column![menu_bar, main_content];
 
         container(content)
             .width(Length::Fill)
